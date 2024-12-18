@@ -134,30 +134,37 @@ class DatetimeFormatter(Formatter):
 
         def datetime_formatter(each_value, datetime_format):
             """
-            convert each single column datetime string to timestamp int value.
+            Convert input to timestamp value. Handles both string and datetime inputs.
             """
             try:
+                if pd.isna(each_value):
+                    return np.nan
+                
+                if isinstance(each_value, (pd.Timestamp, datetime)):
+                    return datetime.timestamp(each_value)
+                
+                # Try parsing as string
                 datetime_obj = datetime.strptime(str(each_value), datetime_format)
-                each_stamp = datetime.timestamp(datetime_obj)
+                return datetime.timestamp(datetime_obj)
             except Exception as e:
                 logger.warning(
-                    f"An error occured when convert str to timestamp {e}, we set as mean."
+                    f"Error converting to timestamp: {e}, value will be set as NaN"
                 )
                 logger.warning(f"Input parameters: ({str(each_value)}, {datetime_format})")
                 logger.warning(f"Input type: ({type(each_value)}, {type(datetime_format)})")
-                each_stamp = np.nan
-            return each_stamp
+                return np.nan
 
         # Make a copy of processed_data to avoid modifying the original data
         result_data: pd.DataFrame = processed_data.copy()
 
         # Convert each datetime column in datetime_column_list to timestamp
         for column in datetime_column_list:
-            # Convert datetime to timestamp (int)
+            # Convert datetime to timestamp (float)
             result_data[column] = result_data[column].apply(
                 datetime_formatter, datetime_format=datetime_formats[column]
             )
-            result_data[column].fillna(result_data[column].mean(), inplace=True)
+            # Don't fill NaN values - let them propagate through the pipeline
+            # This ensures invalid dates remain invalid
         return result_data
 
     def reverse_convert(self, processed_data: pd.DataFrame) -> pd.DataFrame:
@@ -200,13 +207,22 @@ class DatetimeFormatter(Formatter):
             if the value <0, the result will be `No Datetime`, try to fix it.
         """
 
-        def column_timestamp_formatter(each_stamp: int, timestamp_format: str) -> str:
+        def column_timestamp_formatter(each_stamp: float, timestamp_format: str) -> str:
+            """
+            Convert timestamp to datetime string with proper error handling.
+            """
             try:
-                each_str = datetime.fromtimestamp(each_stamp).strftime(timestamp_format)
+                if pd.isna(each_stamp):
+                    return "No Datetime"
+                
+                # Ensure timestamp is valid (not negative or too large)
+                if not (0 <= each_stamp <= 253402300799):  # Max valid timestamp
+                    return "No Datetime"
+                
+                return datetime.fromtimestamp(each_stamp).strftime(timestamp_format)
             except Exception as e:
-                logger.debug(f"An error occured when convert timestamp to str {e}.")
-                each_str = "No Datetime"
-            return each_str
+                logger.debug(f"Error converting timestamp to str: {e}")
+                return "No Datetime"
 
         # Copy the processed data to result_data
         result_data = processed_data.copy()
