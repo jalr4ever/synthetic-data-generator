@@ -134,19 +134,26 @@ class DatetimeFormatter(Formatter):
 
         def datetime_formatter(each_value, datetime_format):
             """
-            convert each single column datetime string to timestamp int value.
+            Convert input value to timestamp. Input can be:
+            - A datetime string in the specified format
+            - A timestamp (float/int)
             """
             try:
+                # If input is already a timestamp (float/int), return it as is
+                if isinstance(each_value, (float, int)):
+                    return float(each_value)
+                
+                # Otherwise try to parse it as a datetime string
                 datetime_obj = datetime.strptime(str(each_value), datetime_format)
                 each_stamp = datetime.timestamp(datetime_obj)
+                return each_stamp
             except Exception as e:
                 logger.warning(
-                    f"An error occured when convert str to timestamp {e}, we set as mean."
+                    f"An error occured when converting to timestamp {e}, we set as mean."
                 )
                 logger.warning(f"Input parameters: ({str(each_value)}, {datetime_format})")
                 logger.warning(f"Input type: ({type(each_value)}, {type(datetime_format)})")
-                each_stamp = np.nan
-            return each_stamp
+                return np.nan
 
         # Make a copy of processed_data to avoid modifying the original data
         result_data: pd.DataFrame = processed_data.copy()
